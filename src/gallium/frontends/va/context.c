@@ -148,9 +148,11 @@ VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
       break;
    }
 #else
+#if !DETECT_OS_ANDROID
    case VA_DISPLAY_ANDROID:
       FREE(drv);
       return VA_STATUS_ERROR_UNIMPLEMENTED;
+#endif
    case VA_DISPLAY_GLX:
    case VA_DISPLAY_X11:
 #ifdef GALLIUM_ZINK
@@ -162,6 +164,10 @@ VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
       if (!drv->vscreen)
          drv->vscreen = vl_xlib_swrast_screen_create(ctx->native_dpy, ctx->x11_screen);
       break;
+#if DETECT_OS_ANDROID
+   /* libva-android opens the render node into drm_state, like a DRM display */
+   case VA_DISPLAY_ANDROID:
+#endif
    case VA_DISPLAY_WAYLAND:
    case VA_DISPLAY_DRM:
    case VA_DISPLAY_DRM_RENDERNODES: {

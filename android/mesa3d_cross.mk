@@ -94,6 +94,8 @@ MESON_GEN_NINJA := \
 	-Dgbm-backends-path=/vendor/$(MESA3D_LIB_DIR)                                \
 	-Degl=$(if $(BOARD_MESA3D_GALLIUM_DRIVERS),enabled,disabled)                 \
 	-Dllvm=$(if $(MESON_GEN_LLVM_STUB),enabled,disabled)                         \
+	-Dgallium-va=$(if $(strip $(BOARD_MESA3D_VA_DRIVERS)),enabled,disabled)      \
+	$(if $(strip $(BOARD_MESA3D_VA_DRIVERS)),-Dvideo-codecs=$(subst $(space),$(comma),$(or $(strip $(BOARD_MESA3D_VIDEO_CODECS)),all_free))) \
 	-Dcpp_rtti=false                                                             \
 	-Dlmsensors=disabled                                                         \
 	-Dandroid-libbacktrace=disabled                                              \
@@ -238,6 +240,11 @@ $(strip \
   )
 )
 endef
+
+# meson configure compiles against exported headers (libva's generated va/va_version.h), so it
+# must wait for them like the objects of a normal module do
+$(foreach dep,$(imported_includes),\
+  $(eval EXPORTS.$$(dep).USERS := $$(EXPORTS.$$(dep).USERS) $$(MESON_GEN_FILES_TARGET)))
 
 $(MESON_GEN_FILES_TARGET): PREPROCESS_MESON_CONFIGS:=$(PREPROCESS_MESON_CONFIGS)
 $(MESON_GEN_FILES_TARGET): MESON_GEN_DIR:=$(MESON_GEN_DIR)

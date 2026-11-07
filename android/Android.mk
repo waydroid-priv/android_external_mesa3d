@@ -98,6 +98,17 @@ LOCAL_SHARED_LIBRARIES += libdrm_radeon
 MESON_GEN_PKGCONFIGS += libdrm_radeon:$(LIBDRM_VERSION)
 endif
 
+# VA-API: BOARD_MESA3D_VA_DRIVERS names the VA drivers to install (radeonsi r600 nouveau
+# virtio_gpu); each needs its gallium driver in BOARD_MESA3D_GALLIUM_DRIVERS. The VA frontend is
+# built into libgallium_dri.so, so each driver is a <driver>_drv_video.so link to it.
+# libva comes from hardware/intel/common/libva, which loads drivers from /vendor/lib{64}.
+ifneq ($(strip $(BOARD_MESA3D_VA_DRIVERS)),)
+LIBVA_API_VERSION = $(shell awk '/^va_api_major_version/ {M=$$3} /^va_api_minor_version/ {m=$$3} END {print M "." m ".0"}' hardware/intel/common/libva/meson.build)
+LOCAL_SHARED_LIBRARIES += libva
+LOCAL_HEADER_LIBRARIES += libva_headers
+MESON_GEN_PKGCONFIGS += libva:$(LIBVA_API_VERSION)
+endif
+
 ifneq ($(filter d3d12,$(BOARD_MESA3D_GALLIUM_DRIVERS)),)
 LOCAL_HEADER_LIBRARIES += DirectX-Headers
 LOCAL_STATIC_LIBRARIES += DirectX-Guids
@@ -156,6 +167,7 @@ endif
 # $2: subdir
 # $3: source prebuilt
 # $4: export headers
+# $5: links to the library, next to it (only without a subdir)
 define mesa3d-lib
 include $(CLEAR_VARS)
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
@@ -168,6 +180,7 @@ LOCAL_CHECK_ELF_FILES := false
 LOCAL_MODULE_SUFFIX := .so
 LOCAL_SHARED_LIBRARIES := $(__MY_SHARED_LIBRARIES)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $4
+LOCAL_POST_INSTALL_CMD := $(foreach l,$5,ln -sf $1.so $(TARGET_OUT_VENDOR_SHARED_LIBRARIES)/$l;)
 include $(BUILD_PREBUILT)
 
 ifdef TARGET_2ND_ARCH
@@ -182,14 +195,17 @@ LOCAL_CHECK_ELF_FILES := false
 LOCAL_MODULE_SUFFIX := .so
 LOCAL_SHARED_LIBRARIES := $(__MY_SHARED_LIBRARIES)
 LOCAL_EXPORT_C_INCLUDE_DIRS := $4
+LOCAL_POST_INSTALL_CMD := $(foreach l,$5,ln -sf $1.so $(2ND_TARGET_OUT_VENDOR_SHARED_LIBRARIES)/$l;)
 include $(BUILD_PREBUILT)
 endif
 endef
 
 ifneq ($(strip $(BOARD_MESA3D_GALLIUM_DRIVERS)),)
-# Module 'libgallium_dri', produces '/vendor/lib{64}/libgallium_dri.so'
+# Module 'libgallium_dri', produces '/vendor/lib{64}/libgallium_dri.so' and the
+# '{driver}_drv_video.so' VA-API links to it that libva loads
 # This module also trigger DRI symlinks creation process
-$(eval $(call mesa3d-lib,libgallium_dri,,MESA3D_GALLIUM_BIN))
+$(eval $(call mesa3d-lib,libgallium_dri,,MESA3D_GALLIUM_BIN,, \
+    $(foreach driver,$(BOARD_MESA3D_VA_DRIVERS),$(driver)_drv_video.so)))
 
 # Module 'libEGL_mesa', produces '/vendor/lib{64}/egl/libEGL_mesa.so'
 $(eval $(call mesa3d-lib,libEGL_mesa,egl,MESA3D_LIBEGL_BIN))
